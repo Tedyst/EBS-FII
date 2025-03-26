@@ -22,9 +22,17 @@ public class Main
         WordCountBolt countbolt = new WordCountBolt();
         TerminalBolt terminalbolt = new TerminalBolt();
 
-        builder.setSpout(SPOUT_ID, spout);
-        builder.setBolt(SPLIT_BOLT_ID, splitbolt).shuffleGrouping(SPOUT_ID);
-        builder.setBolt(COUNT_BOLT_ID, countbolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
+//    	builder.setSpout(SPOUT_ID, spout);
+        builder.setSpout(SPOUT_ID, spout, 2);
+
+//    	builder.setBolt(SPLIT_BOLT_ID, splitbolt).shuffleGrouping(SPOUT_ID);
+//    	builder.setBolt(SPLIT_BOLT_ID, splitbolt, 2).setNumTasks(4).shuffleGrouping(SPOUT_ID);
+//    	builder.setBolt(SPLIT_BOLT_ID, splitbolt, 2).setNumTasks(4).allGrouping(SPOUT_ID);
+        builder.setBolt(SPLIT_BOLT_ID, splitbolt, 2).setNumTasks(4).customGrouping(SPOUT_ID, new LoadBalancerGrouping());
+
+//    	builder.setBolt(COUNT_BOLT_ID, countbolt).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
+        builder.setBolt(COUNT_BOLT_ID, countbolt, 4).fieldsGrouping(SPLIT_BOLT_ID, new Fields("word"));
+
         builder.setBolt(TERMINAL_BOLT_ID, terminalbolt).globalGrouping(COUNT_BOLT_ID);
 
         Config config = new Config();
@@ -34,6 +42,7 @@ public class Main
 
         // fine tuning
         config.put(Config.TOPOLOGY_EXECUTOR_RECEIVE_BUFFER_SIZE,1024);
+        // for Storm v1 use TOPOLOGY_DISRUPTOR_BATCH_SIZE
         config.put(Config.TOPOLOGY_TRANSFER_BATCH_SIZE,1);
 
         cluster.submitTopology("count_topology", config, topology);
@@ -47,6 +56,9 @@ public class Main
 
         cluster.killTopology("count_topology");
         cluster.shutdown();
+
+        // comment this for Storm v1
+        cluster.close();
 
     }
 }

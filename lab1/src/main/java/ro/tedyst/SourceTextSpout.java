@@ -1,6 +1,8 @@
 package ro.tedyst;
 
+
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.storm.spout.SpoutOutputCollector;
 import org.apache.storm.task.TopologyContext;
@@ -11,43 +13,53 @@ import org.apache.storm.tuple.Values;
 
 public class SourceTextSpout extends BaseRichSpout {
 
+    private static final long serialVersionUID = 1;
+
     private SpoutOutputCollector collector;
     private String[] sourcetext = {
             "text one",
             "text two",
             "text three",
             "text four",
-            "too much text after one"
+            "too much text after one",
+            "drop this text"
     };
     private int i = 0;
+    private String task;
+    private Random random;
 
-    public void open(Map <String,Object> conf, TopologyContext context, SpoutOutputCollector collector) {
-        // TODO Auto-generated method stub
+    // remove template type qualifiers from conf declaration for Storm v1
+    public void open(Map<String, Object> conf, TopologyContext context, SpoutOutputCollector collector) {
+        this.random = new Random();
         this.collector = collector;
+        this.task = context.getThisComponentId()+" "+context.getThisTaskId();
+        System.out.println("----- Started spout task: "+this.task);
 
     }
 
     public void nextTuple() {
-        // TODO Auto-generated method stub
 
-        this.collector.emit(new Values(sourcetext[i]));
-        i++;
-        if (i >= sourcetext.length) {
-            i = 0;
+        // continuous tuple emission variant
+		/*
+		this.collector.emit(new Values(sourcetext[i]));
+		i++;
+		if (i >= sourcetext.length) {
+			i = 0;
+		}
+		*/
+
+        // limited tuple emission variant
+        if (i < sourcetext.length) {
+            int difficulty = this.random.nextInt(10);
+            this.collector.emit(new Values(sourcetext[i], difficulty));
+            i++;
         }
 
-        try {
-            Thread.sleep(1);
-        } catch (InterruptedException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
     }
 
     public void declareOutputFields(OutputFieldsDeclarer declarer) {
-        // TODO Auto-generated method stub
-        declarer.declare(new Fields("words"));
 
+        declarer.declare(new Fields("words", "difficulty"));
     }
 
 }

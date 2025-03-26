@@ -1,0 +1,24 @@
+[project]
+name = "tema1"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Stoica Tedy",email = "stoicatedy@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "celery (>=5.4.0,<6.0.0)",
+    "redis (>=5.2.1,<6.0.0)",
+    "numpy (>=2.2.4,<3.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "pydantic (>=2.10.6,<3.0.0)"
+]
+
+[tool.poetry]
+package-mode = false
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
