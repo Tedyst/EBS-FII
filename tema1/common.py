@@ -104,10 +104,10 @@ class ComparablePonder(BaseModel):
                     Comparator.LESS_EQUAL,
                 ],
                 weights=[
-                    (1 - self.equality_ponder) / 3,
-                    (1 - self.equality_ponder) / 3,
-                    (1 - self.equality_ponder) / 3,
-                    (1 - self.equality_ponder) / 3,
+                    (1 - self.equality_ponder) / 4,
+                    (1 - self.equality_ponder) / 4,
+                    (1 - self.equality_ponder) / 4,
+                    (1 - self.equality_ponder) / 4,
                 ],
                 k=1,
             )[0]
