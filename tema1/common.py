@@ -1,4 +1,5 @@
 import enum
+import threading
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -76,28 +77,48 @@ class Comparable[T](BaseModel):
     comparator: Comparator
 
 
+lock_comparator = threading.Lock()
+lock_existance = threading.Lock()
+
 class ComparablePonder(BaseModel):
     equality_ponder: float = Field(default=1, ge=0, le=1)
     existance_ponder: float = Field(default=0, ge=0, le=1)
 
+    count_equality: int = 0
+    count_nonequality: int = 0
+
+    count_nonexistants: int = 0
+    count_existants: int = 0
+
     def get_comparator(self):
-        return random.choices(
-            [
-                Comparator.EQUAL,
-                Comparator.GREATER,
-                Comparator.GREATER_EQUAL,
-                Comparator.LESS,
-                Comparator.LESS_EQUAL,
-            ],
-            weights=[
-                self.equality_ponder,
-                (1 - self.equality_ponder) / 3,
-                (1 - self.equality_ponder) / 3,
-                (1 - self.equality_ponder) / 3,
-                (1 - self.equality_ponder) / 3,
-            ],
-            k=1,
-        )[0]
+        with lock_comparator:
+            if (self.count_equality + self.count_nonequality) * self.equality_ponder >= self.count_equality:
+                self.count_equality += 1 
+                return Comparator.EQUAL
+            self.count_nonequality += 1
+            return random.choices(
+                [
+                    Comparator.GREATER,
+                    Comparator.GREATER_EQUAL,
+                    Comparator.LESS,
+                    Comparator.LESS_EQUAL,
+                ],
+                weights=[
+                    (1 - self.equality_ponder) / 3,
+                    (1 - self.equality_ponder) / 3,
+                    (1 - self.equality_ponder) / 3,
+                    (1 - self.equality_ponder) / 3,
+                ],
+                k=1,
+            )[0]
+
+    def should_exist(self):
+        with lock_existance:
+            if (self.count_nonexistants + self.count_existants) * self.existance_ponder >= self.count_existants:
+                self.count_existants += 1
+                return True
+            self.count_nonexistants += 1
+            return False
 
 
 class SubscriptionPonders(BaseModel):
@@ -128,7 +149,7 @@ class Subscription(BaseModel):
                 value=random.randint(1, 100),
                 comparator=ponders.stationid.get_comparator(),
             )
-            if random.random() < ponders.stationid.existance_ponder
+            if ponders.stationid.should_exist()
             else None
         )
         city = (
@@ -136,7 +157,7 @@ class Subscription(BaseModel):
                 value=random.choice(list(City)),
                 comparator=ponders.city.get_comparator(),
             )
-            if random.random() < ponders.city.existance_ponder
+            if ponders.city.should_exist()
             else None
         )
         temp = (
@@ -144,7 +165,7 @@ class Subscription(BaseModel):
                 value=random.randint(-10, 40),
                 comparator=ponders.temp.get_comparator(),
             )
-            if random.random() < ponders.temp.existance_ponder
+            if ponders.temp.should_exist()
             else None
         )
         rain = (
@@ -152,7 +173,7 @@ class Subscription(BaseModel):
                 value=round(random.uniform(0, 1), 2),
                 comparator=ponders.rain.get_comparator(),
             )
-            if random.random() < ponders.rain.existance_ponder
+            if ponders.rain.should_exist()
             else None
         )
         wind = (
@@ -160,7 +181,7 @@ class Subscription(BaseModel):
                 value=random.randint(0, 20),
                 comparator=ponders.wind.get_comparator(),
             )
-            if random.random() < ponders.wind.existance_ponder
+            if ponders.wind.should_exist()
             else None
         )
         direction = (
@@ -168,7 +189,7 @@ class Subscription(BaseModel):
                 value=random.choice(list(Direction)),
                 comparator=ponders.direction.get_comparator(),
             )
-            if random.random() < ponders.direction.existance_ponder
+            if ponders.direction.should_exist()
             else None
         )
         date = (
@@ -178,7 +199,7 @@ class Subscription(BaseModel):
                 ).date(),
                 comparator=ponders.date.get_comparator(),
             )
-            if random.random() < ponders.date.existance_ponder
+            if ponders.date.should_exist()
             else None
         )
 
