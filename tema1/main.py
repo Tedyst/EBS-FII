@@ -7,11 +7,13 @@ from typing import Callable
 
 from common import ComparablePonder, Publication, Subscription, SubscriptionPonders
 
-PUBLICATIONS_COUNT = 10000
-SUBSCRIPTIONS_COUNT = 10000
+import os
 
-PROCESSES = 8
-THREADS = 1
+PUBLICATIONS_COUNT = int(os.getenv("PUBLICATIONS_COUNT", 10000))
+SUBSCRIPTIONS_COUNT = int(os.getenv("SUBSCRIPTIONS_COUNT", 10000))
+PROCESSES = int(os.getenv("PROCESSES", 8))
+THREADS = int(os.getenv("THREADS", 1))
+
 
 ponders = SubscriptionPonders(
     stationid=ComparablePonder(equality_ponder=0.6121335763499347, existance_ponder=0.9292710042118085),
@@ -57,8 +59,11 @@ def generate_threads(function: Callable, count: int):
 
 
 def main():
-    os.remove("publications.txt")
-    os.remove("subscriptions.txt")
+    if os.path.exists("publications.txt"):
+        os.remove("publications.txt")
+    if os.path.exists("subscriptions.txt"):
+        os.remove("subscriptions.txt")
+
     start_time = time.time()
 
     pc = PUBLICATIONS_COUNT // PROCESSES
