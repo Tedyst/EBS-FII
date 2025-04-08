@@ -7,7 +7,7 @@ declare -a PROCESSES_COUNTS=(2 4 8 16)
 declare -a THREADS_COUNTS=(1 2 4)
 
 # Fișier de rezultate
-RESULTS_FILE="results.csv"
+RESULTS_FILE="results_Vlad.csv"
 echo "Publications,Subscriptions,Processes,Threads,Execution Time" > $RESULTS_FILE
 
 # Rulează testele pentru fiecare combinație de parametri

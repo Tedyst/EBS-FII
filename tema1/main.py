@@ -59,8 +59,11 @@ def generate_threads(function: Callable, count: int):
 
 
 def main():
-    os.remove("publications.txt")
-    os.remove("subscriptions.txt")
+    if os.path.exists("publications.txt"):
+        os.remove("publications.txt")
+    if os.path.exists("subscriptions.txt"):
+        os.remove("subscriptions.txt")
+
     start_time = time.time()
 
     pc = PUBLICATIONS_COUNT // PROCESSES

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # Încarcă datele CSV într-un DataFrame
-data = pd.read_csv('results.csv')
+data = pd.read_csv('results_Vlad.csv')
 
 # Configurează stilul graficului
 sns.set(style="whitegrid")
@@ -17,7 +17,8 @@ plt.title('Timpul de execuție în funcție de numărul de publicații')
 plt.xlabel('Număr publicații')
 plt.ylabel('Timp de execuție (secunde)')
 plt.legend(title="Threads")
-plt.show()
+# plt.show()
+plt.savefig('graphs//Vlad//publications_execution_time.png')
 
 # Grafic pentru Subscriptions vs. Execution Time
 plt.figure(figsize=(10, 6))
@@ -26,7 +27,8 @@ plt.title('Timpul de execuție în funcție de numărul de abonamente')
 plt.xlabel('Număr abonamente')
 plt.ylabel('Timp de execuție (secunde)')
 plt.legend(title="Threads")
-plt.show()
+# plt.show()
+plt.savefig('graphs//Vlad//subscriptions_execution_time.png')
 
 # Grafic pentru Processes vs. Execution Time
 plt.figure(figsize=(10, 6))
@@ -35,7 +37,8 @@ plt.title('Timpul de execuție în funcție de numărul de procese')
 plt.xlabel('Număr procese')
 plt.ylabel('Timp de execuție (secunde)')
 plt.legend(title="Threads")
-plt.show()
+# plt.show()
+plt.savefig('graphs//Vlad//processes_execution_time.png')
 
 # Grafic pentru Threads vs. Execution Time
 plt.figure(figsize=(10, 6))
@@ -44,4 +47,6 @@ plt.title('Timpul de execuție în funcție de numărul de threaduri')
 plt.xlabel('Număr threaduri')
 plt.ylabel('Timp de execuție (secunde)')
 plt.legend(title="Procese")
-plt.show()
+# plt.show()
+plt.savefig('graphs//Vlad//threads_execution_time.png')
+
