@@ -114,7 +114,7 @@ class ComparablePonder(BaseModel):
 
     def should_exist(self):
         with lock_existance:
-            if (self.count_nonexistants + self.count_existants) * self.existance_ponder >= self.count_existants:
+            if (self.count_nonexistants + self.count_existants) * self.existance_ponder > self.count_existants:
                 self.count_existants += 1
                 return True
             self.count_nonexistants += 1
@@ -202,6 +202,22 @@ class Subscription(BaseModel):
             if ponders.date.should_exist()
             else None
         )
+
+        if not stationid and not city and not temp and not rain and not wind and not direction and not date:
+            ponders.stationid.count_nonexistants -= 1
+            ponders.stationid.count_existants += 1
+            return cls(
+                stationid=Comparable[int](
+                    value=random.randint(1, 100),
+                    comparator=ponders.stationid.get_comparator(),
+                ),
+                city=None,
+                temp=None,
+                rain=None,
+                wind=None,
+                direction=None,
+                date=None,
+            )
 
         return cls(
             stationid=stationid,

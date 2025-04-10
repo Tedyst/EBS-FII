@@ -9,14 +9,14 @@ from common import ComparablePonder, Publication, Subscription, SubscriptionPond
 
 import os
 
-PUBLICATIONS_COUNT = int(os.getenv("PUBLICATIONS_COUNT", 10000))
+PUBLICATIONS_COUNT = int(os.getenv("PUBLICATIONS_COUNT", 100))
 SUBSCRIPTIONS_COUNT = int(os.getenv("SUBSCRIPTIONS_COUNT", 10000))
-PROCESSES = int(os.getenv("PROCESSES", 8))
+PROCESSES = int(os.getenv("PROCESSES", 1))
 THREADS = int(os.getenv("THREADS", 1))
 
 
 ponders = SubscriptionPonders(
-    stationid=ComparablePonder(equality_ponder=0.6121335763499347, existance_ponder=0.9292710042118085),
+    stationid=ComparablePonder(equality_ponder=0.6121335763499347, existance_ponder=0.5292710042118085),
     city=ComparablePonder(equality_ponder=0.3463345451866571, existance_ponder=0.8127223672318329),
     temp=ComparablePonder(equality_ponder=0.6018724372232028, existance_ponder=0.5770973878067571),
     rain=ComparablePonder(equality_ponder=0.01188073999266237, existance_ponder=0.7010314666467584),
@@ -71,15 +71,21 @@ def main():
 
     processes = []
 
-    for _ in range(PROCESSES):
+    for i in range(PROCESSES):
+        ppc = pc
+        if i == 0:
+            ppc = PUBLICATIONS_COUNT - (PUBLICATIONS_COUNT // PROCESSES) * (PROCESSES - 1)
         process = multiprocessing.Process(
-            target=generate_threads, args=(generate_publications, pc)
+            target=generate_threads, args=(generate_publications, ppc)
         )
         processes.append(process)
         process.start()
-    for _ in range(PROCESSES):
+    for i in range(PROCESSES):
+        psc = sc
+        if i == PROCESSES - 1:
+            psc = SUBSCRIPTIONS_COUNT - (SUBSCRIPTIONS_COUNT // PROCESSES) * (PROCESSES - 1)
         process = multiprocessing.Process(
-            target=generate_threads, args=(generate_subscriptions, sc)
+            target=generate_threads, args=(generate_subscriptions, psc)
         )
         processes.append(process)
         process.start()
