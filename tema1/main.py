@@ -73,7 +73,7 @@ def main():
 
     for i in range(PROCESSES):
         ppc = pc
-        if i == 0:
+        if i == PROCESSES - 1:
             ppc = PUBLICATIONS_COUNT - (PUBLICATIONS_COUNT // PROCESSES) * (PROCESSES - 1)
         process = multiprocessing.Process(
             target=generate_threads, args=(generate_publications, ppc)
