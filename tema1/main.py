@@ -5,7 +5,7 @@ import os
 import time
 from typing import Callable
 
-from common import ComparablePonder, Publication, Subscription, SubscriptionPonders
+from common import ComparablePonder, Publication, Subscription, SubscriptionPonders, SubscriptionMatcher
 
 import os
 
@@ -98,6 +98,19 @@ def main():
         f"Generated {PUBLICATIONS_COUNT} publications and {SUBSCRIPTIONS_COUNT} subscriptions in {elapsed_time} seconds."
     )
 
+def test_matcher():
+    matcher = SubscriptionMatcher(subscriptions=Subscription.load_from_file("subscriptions.txt"))
+    publications = Publication.load_from_file("publications.txt")
+    if publications:
+        pub = publications[0]
+        matching_subs = matcher.match(pub)
+        print(f"\nPublicatie: {pub}")
+        print(f"Match-uri gasite: {len(matching_subs)}")
+        for sub in matching_subs:
+            print(f"  {sub}")
+    else:
+        print("Nu exista publicatii in fisier.")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    test_matcher()

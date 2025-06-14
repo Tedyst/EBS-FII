@@ -1,12 +1,11 @@
 import enum
 import threading
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
 
 from datetime import date as Date, datetime, timedelta
 import random
-
 
 class City(enum.Enum):
     BUCHAREST = "Bucharest"
@@ -63,6 +62,44 @@ class Publication(BaseModel):
     def __str__(self):
         return f"{{(stationid,{self.stationid});(city,\"{self.city}\");(temp,{self.temp});(rain,{self.rain});(wind,{self.wind});(direction,\"{self.direction}\");(date,{self.date.strftime('%d.%m.%Y')})}}"
 
+    @classmethod
+    def parse_str(cls, line: str) -> "Publication":
+       
+        line = line.strip()[1:-1]
+        kwargs = {}
+        for part in line.split(";"):
+            if not part:
+                continue
+            key, value = part.strip("()").split(",", 1)
+            if key == "stationid":
+                kwargs["stationid"] = int(value)
+            elif key == "city":
+                kwargs["city"] = City(value.strip('"'))
+            elif key == "temp":
+                kwargs["temp"] = int(value)
+            elif key == "rain":
+                kwargs["rain"] = float(value)
+            elif key == "wind":
+                kwargs["wind"] = int(value)
+            elif key == "direction":
+                kwargs["direction"] = Direction(value.strip('"'))
+            elif key == "date":
+                # Try to parse the date in both formats: "dd.mm.yyyy" and "yyyy-mm-dd"
+                try:
+                    kwargs["date"] = datetime.strptime(value, "%d.%m.%Y").date()
+                except ValueError:
+                    kwargs["date"] = datetime.strptime(value, "%Y-%m-%d").date()
+        return cls(**kwargs)
+
+    @classmethod
+    def load_from_file(cls, filename: str) -> list["Publication"]:
+        pubs = []
+        with open(filename, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    pubs.append(cls.parse_str(line))
+        return pubs
 
 class Comparator(enum.Enum):
     EQUAL = "="
@@ -241,3 +278,75 @@ class Subscription(BaseModel):
             )
             + "}"
         )
+    
+    @classmethod
+    def parse_str(cls, line: str) -> "Subscription":
+     
+        line = line.strip()[1:-1]
+        kwargs = {}
+        for part in line.split(";"):
+            if not part:
+                continue
+            key, op, value = part.strip("()").split(",", 2)
+            if key == "stationid":
+                kwargs["stationid"] = Comparable[int](value=int(value), comparator=Comparator(op))
+            elif key == "city":
+                kwargs["city"] = Comparable[City](value=City(value), comparator=Comparator(op))
+            elif key == "temp":
+                kwargs["temp"] = Comparable[int](value=int(value), comparator=Comparator(op))
+            elif key == "rain":
+                kwargs["rain"] = Comparable[float](value=float(value), comparator=Comparator(op))
+            elif key == "wind":
+                kwargs["wind"] = Comparable[int](value=int(value), comparator=Comparator(op))
+            elif key == "direction":
+                kwargs["direction"] = Comparable[Direction](value=Direction(value), comparator=Comparator(op))
+            elif key == "date":
+                kwargs["date"] = Comparable[Date](value=datetime.strptime(value, "%Y-%m-%d").date(), comparator=Comparator(op))
+        return cls(**kwargs)
+
+    @classmethod
+    def load_from_file(cls, filename: str) -> list["Subscription"]:
+        subs = []
+        with open(filename, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    subs.append(cls.parse_str(line))
+        return subs
+
+
+class SubscriptionMatcher:
+    def __init__(self, subscriptions: List[Subscription]):
+        self.subscriptions = subscriptions
+
+    def match(self, publication: Publication) -> List[Subscription]:
+        matches = []
+        for sub in self.subscriptions:
+            if self._matches(sub, publication):
+                matches.append(sub)
+        return matches
+
+    def _matches(self, sub: Subscription, pub: Publication) -> bool:
+        for field in sub.__class__.model_fields:
+            comp = getattr(sub, field)
+            if comp is not None:
+                pub_value = getattr(pub, field)
+                if not self._compare(pub_value, comp.value, comp.comparator):
+                    return False
+        return True
+
+    def _compare(self, pub_value, sub_value, comparator: Comparator) -> bool:
+        if isinstance(pub_value, (City, Direction)):
+            pub_value = str(pub_value.value)
+            sub_value = str(sub_value.value)
+        if comparator == Comparator.EQUAL:
+            return pub_value == sub_value
+        if comparator == Comparator.GREATER:
+            return pub_value > sub_value
+        if comparator == Comparator.GREATER_EQUAL:
+            return pub_value >= sub_value
+        if comparator == Comparator.LESS:
+            return pub_value < sub_value
+        if comparator == Comparator.LESS_EQUAL:
+            return pub_value <= sub_value
+        return False
