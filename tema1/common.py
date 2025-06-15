@@ -316,24 +316,20 @@ class Subscription(BaseModel):
 
 
 class SubscriptionMatcher:
-    def __init__(self, subscriptions: List[Subscription]):
+    def __init__(self, subscriptions: List[Subscription], field: str):
         self.subscriptions = subscriptions
+        self.field = field 
 
-    def match(self, publication: Publication) -> List[Subscription]:
+    def match(self, value) -> list[Subscription]:
         matches = []
         for sub in self.subscriptions:
-            if self._matches(sub, publication):
+            comp = getattr(sub, self.field)
+            if comp is None:
                 matches.append(sub)
+            else:
+                if self._compare(value, comp.value, comp.comparator):
+                    matches.append(sub)
         return matches
-
-    def _matches(self, sub: Subscription, pub: Publication) -> bool:
-        for field in sub.__class__.model_fields:
-            comp = getattr(sub, field)
-            if comp is not None:
-                pub_value = getattr(pub, field)
-                if not self._compare(pub_value, comp.value, comp.comparator):
-                    return False
-        return True
 
     def _compare(self, pub_value, sub_value, comparator: Comparator) -> bool:
         if isinstance(pub_value, (City, Direction)):
