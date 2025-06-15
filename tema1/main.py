@@ -112,5 +112,5 @@ def test_matcher():
         print("Nu exista publicatii in fisier.")
 
 if __name__ == "__main__":
-    # main()
+    #main()
     test_matcher()
