@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+message Publication {
+  string id = 1; 
+  string stationid = 2;
+  string city = 3;
+  int32 temp = 4;
+  float rain = 5;
+  int32 wind = 6;
+  string direction = 7;
+  string date = 8;
+}
+
+enum Comparator {
+  EQUAL = 0;
+  GREATER = 1;
+  GREATER_EQUAL = 2;
+  LESS = 3;
+  LESS_EQUAL = 4;
+}
+
+message ComparableInt {
+  int32 value = 1;
+  Comparator comparator = 2;
+}
+
+message ComparableFloat {
+  float value = 1;
+  Comparator comparator = 2;
+}
+
+message ComparableString {
+  string value = 1;
+  Comparator comparator = 2;
+}
+
+message Subscription {
+  string id = 1; 
+  ComparableString stationid = 2;
+  ComparableString city = 3;
+  ComparableInt temp = 4;
+  ComparableFloat rain = 5;
+  ComparableInt wind = 6;
+  ComparableString direction = 7;
+  ComparableString date = 8;
+}

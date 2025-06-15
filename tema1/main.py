@@ -1,14 +1,16 @@
 import multiprocessing
 import threading
 import os
+from datetime import datetime
 
 import time
 from typing import Callable
 
-from common import ComparablePonder, Publication, Subscription, SubscriptionPonders, SubscriptionMatcher
+from common import ComparablePonder, Publication, Subscription, SubscriptionPonders, SubscriptionMatcher, Comparable, Comparator, City
 import common
 
-import os
+import pubsub_pb2 as proto
+import uuid
 
 PUBLICATIONS_COUNT = int(os.getenv("PUBLICATIONS_COUNT", 100))
 SUBSCRIPTIONS_COUNT = int(os.getenv("SUBSCRIPTIONS_COUNT", 10000))
@@ -100,13 +102,64 @@ def main():
     )
 
 def test_matcher():
-    subscriptions=Subscription.load_from_file("subscriptions.txt")
-    publications = Publication.load_from_file("publications.txt")
+    subscriptions=Subscription.load_from_file("../../subscriptions.txt")
+    # publications = Publication.load_from_file("publications.txt")
 
     matcher_city = SubscriptionMatcher(subscriptions, field="city")
     matches_city = matcher_city.match(common.City.BUCHAREST)
     print(f"Matches for city Bucharest: {len(matches_city)}")
 
+def test_proto_pubsub():
+  
+    pub_py = Publication(
+        id=str(uuid.uuid4()),
+        stationid="1",
+        city="Bucharest",
+        temp=25,
+        rain=0.1,
+        wind=10,
+        direction="NE",
+        date="2023-06-15"
+    )
+    sub_py = Subscription(
+        id=str(uuid.uuid4()),
+        stationid=Comparable[str](value=str(uuid.uuid4()), comparator=Comparator.GREATER_EQUAL),
+        city=Comparable[str](value="Bucharest", comparator=Comparator.EQUAL),
+        temp=Comparable[int](value=25, comparator=Comparator.GREATER),
+        rain=Comparable[float](value=0.2, comparator=Comparator.LESS_EQUAL),
+        wind=Comparable[int](value=10, comparator=Comparator.LESS),
+        direction=Comparable[str](value="NE", comparator=Comparator.EQUAL),
+        date=Comparable[datetime](value=datetime(2023, 6, 15), comparator=Comparator.EQUAL)
+    )
+
+    # Conversie la protobuf
+    pub_proto = pub_py.to_proto()
+    sub_proto = sub_py.to_proto()
+
+    # Serializare
+    pub_bytes = pub_proto.SerializeToString()
+    sub_bytes = sub_proto.SerializeToString()
+
+    # Deserializare
+    pub_proto2 = proto.Publication()
+    pub_proto2.ParseFromString(pub_bytes)
+    sub_proto2 = proto.Subscription()
+    sub_proto2.ParseFromString(sub_bytes)
+
+    # Conversie inapoi la clasele Python
+    pub_py2 = Publication.from_proto(pub_proto2)
+    sub_py2 = Subscription.from_proto(sub_proto2)
+
+
+    print("Publication original:", pub_py)
+    print("\nPublication proto:", pub_proto2)
+    print("\nPublication final:", pub_py2)
+
+    print("\nSubscription original:", sub_py)
+    print("\nSubscription proto:", sub_proto2)
+    print("\nSubscription final:", sub_py2)
+
 if __name__ == "__main__":
     # main()
-    test_matcher()
+    test_proto_pubsub()
+    # test_matcher()

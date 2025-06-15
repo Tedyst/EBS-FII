@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 from datetime import date as Date, datetime, timedelta
 import random
+import uuid
+
+import pubsub_pb2 as proto
 
 class City(enum.Enum):
     BUCHAREST = "Bucharest"
@@ -29,7 +32,8 @@ class Direction(enum.Enum):
 
 
 class Publication(BaseModel):
-    stationid: int = Field(..., ge=1, le=100)
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    stationid: str = Field(...)
     city: City
     temp: int = Field(..., ge=-10, le=40)
     rain: float = Field(..., ge=0, le=1)
@@ -41,7 +45,7 @@ class Publication(BaseModel):
 
     @classmethod
     def random(cls):
-        stationid = random.randint(1, 100)
+        stationid = str(uuid.uuid4())
         city = random.choice(list(City))
         temp = random.randint(-10, 40)
         rain = round(random.uniform(0, 1), 2)
@@ -62,6 +66,31 @@ class Publication(BaseModel):
     def __str__(self):
         return f"{{(stationid,{self.stationid});(city,\"{self.city}\");(temp,{self.temp});(rain,{self.rain});(wind,{self.wind});(direction,\"{self.direction}\");(date,{self.date.strftime('%d.%m.%Y')})}}"
 
+    def to_proto(self):
+        return proto.Publication(
+            id=str(self.id),
+            stationid=str(self.stationid),
+            city=str(self.city.value) if hasattr(self.city, "value") else str(self.city),
+            temp=int(self.temp),
+            rain=float(self.rain),
+            wind=int(self.wind),
+            direction=str(self.direction.value) if hasattr(self.direction, "value") else str(self.direction),
+            date=str(self.date)
+        )
+
+    @classmethod
+    def from_proto(cls, proto_pub):
+        return cls(
+            id=proto_pub.id,
+            stationid=proto_pub.stationid,
+            city=proto_pub.city,
+            temp=proto_pub.temp,
+            rain=proto_pub.rain,
+            wind=proto_pub.wind,
+            direction=proto_pub.direction,
+            date=proto_pub.date
+        )
+    
     @classmethod
     def parse_str(cls, line: str) -> "Publication":
        
@@ -72,7 +101,7 @@ class Publication(BaseModel):
                 continue
             key, value = part.strip("()").split(",", 1)
             if key == "stationid":
-                kwargs["stationid"] = int(value)
+                kwargs["stationid"] = str(value)
             elif key == "city":
                 kwargs["city"] = City(value.strip('"'))
             elif key == "temp":
@@ -100,6 +129,7 @@ class Publication(BaseModel):
                 if line:
                     pubs.append(cls.parse_str(line))
         return pubs
+    
 
 class Comparator(enum.Enum):
     EQUAL = "="
@@ -169,7 +199,8 @@ class SubscriptionPonders(BaseModel):
 
 
 class Subscription(BaseModel):
-    stationid: Optional[Comparable[int]] = None
+    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
+    stationid: Optional[Comparable[str]] = None
     city: Optional[Comparable[City]] = None
     temp: Optional[Comparable[int]] = None
     rain: Optional[Comparable[float]] = None
@@ -182,8 +213,8 @@ class Subscription(BaseModel):
     @classmethod
     def random(cls, ponders: SubscriptionPonders):
         stationid = (
-            Comparable[int](
-                value=random.randint(1, 100),
+            Comparable[str](
+                value=str(uuid.uuid4()),
                 comparator=ponders.stationid.get_comparator(),
             )
             if ponders.stationid.should_exist()
@@ -244,8 +275,8 @@ class Subscription(BaseModel):
             ponders.stationid.count_nonexistants -= 1
             ponders.stationid.count_existants += 1
             return cls(
-                stationid=Comparable[int](
-                    value=random.randint(1, 100),
+                stationid=Comparable[str](
+                    value=str(uuid.uuid4()),
                     comparator=ponders.stationid.get_comparator(),
                 ),
                 city=None,
@@ -266,18 +297,96 @@ class Subscription(BaseModel):
             date=date,
         )
 
-    def __str__(self) -> str:
-        return (
-            "{"
-            + ";".join(
-                [
-                    f"({key},{value.comparator.value},{value.value})"
-                    for key in self.model_fields
-                    if (value := getattr(self, key)) is not None
-                ]
-            )
-            + "}"
+    def __str__(self):
+        fields = []
+        for key, value in self.__dict__.items():
+            if value is None:
+                continue
+            if hasattr(value, "comparator") and hasattr(value, "value"):
+                fields.append(f"({key},{value.comparator.value},{value.value})")
+            else:
+                fields.append(f"({key},=,{value})")
+        return "{" + ";".join(fields) + "}"
+    
+    def to_proto(self):
+        COMPARATOR_MAP = {
+            "=": 0,
+            ">": 1,
+            ">=": 2,
+            "<": 3,
+            "<=": 4
+        }
+        
+        sub = proto.Subscription(
+            id=self.id
         )
+        if self.stationid:
+            sub.stationid.value = str(self.stationid.value)
+            sub.stationid.comparator = COMPARATOR_MAP[self.stationid.comparator.value]
+        if self.city:
+            sub.city.value = str(self.city.value) if hasattr(self.city, "value") else str(self.city)
+            sub.city.comparator = COMPARATOR_MAP[self.city.comparator.value]
+        if self.temp:
+            sub.temp.value = self.temp.value
+            sub.temp.comparator = COMPARATOR_MAP[self.temp.comparator.value]
+        if self.rain:
+            sub.rain.value = self.rain.value
+            sub.rain.comparator = COMPARATOR_MAP[self.rain.comparator.value]
+        if self.wind:
+            sub.wind.value = self.wind.value
+            sub.wind.comparator = COMPARATOR_MAP[self.wind.comparator.value]
+        if self.direction:
+            sub.direction.value = str(self.direction.value) if hasattr(self.direction, "value") else str(self.direction)
+            sub.direction.comparator = COMPARATOR_MAP[self.direction.comparator.value]
+        if self.date:
+            if hasattr(self.date.value, "strftime"):
+                sub.date.value = self.date.value.strftime("%d.%m.%Y")
+            else:
+                sub.date.value = str(self.date.value)
+            sub.date.comparator = COMPARATOR_MAP[self.date.comparator.value]
+        return sub
+
+    @classmethod
+    def from_proto(cls, proto_sub):
+        COMPARATOR_INV_MAP = {
+            0: Comparator.EQUAL,
+            1: Comparator.GREATER,
+            2: Comparator.GREATER_EQUAL,
+            3: Comparator.LESS,
+            4: Comparator.LESS_EQUAL
+        }
+        
+        return cls(
+        id=proto_sub.id,
+        stationid=Comparable[str](
+            value=proto_sub.stationid.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.stationid.comparator]
+        ) if proto_sub.HasField("stationid") else None,
+        city=Comparable[str](
+            value=proto_sub.city.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.city.comparator]
+        ) if proto_sub.HasField("city") else None,
+        temp=Comparable[int](
+            value=proto_sub.temp.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.temp.comparator]
+        ) if proto_sub.HasField("temp") else None,
+        rain=Comparable[float](
+            value=proto_sub.rain.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.rain.comparator]
+        ) if proto_sub.HasField("rain") else None,
+        wind=Comparable[int](
+            value=proto_sub.wind.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.wind.comparator]
+        ) if proto_sub.HasField("wind") else None,
+        direction=Comparable[str](
+            value=proto_sub.direction.value,
+            comparator=COMPARATOR_INV_MAP[proto_sub.direction.comparator]
+        ) if proto_sub.HasField("direction") else None,
+        date=Comparable[datetime](
+            value=datetime.strptime(proto_sub.date.value, "%d.%m.%Y").date(),
+            comparator=COMPARATOR_INV_MAP[proto_sub.date.comparator]
+        ) if proto_sub.HasField("date") else None,
+    )
     
     @classmethod
     def parse_str(cls, line: str) -> "Subscription":
@@ -289,7 +398,7 @@ class Subscription(BaseModel):
                 continue
             key, op, value = part.strip("()").split(",", 2)
             if key == "stationid":
-                kwargs["stationid"] = Comparable[int](value=int(value), comparator=Comparator(op))
+                kwargs["stationid"] = Comparable[str](value=str(value), comparator=Comparator(op))
             elif key == "city":
                 kwargs["city"] = Comparable[City](value=City(value), comparator=Comparator(op))
             elif key == "temp":

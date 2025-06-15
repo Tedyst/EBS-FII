@@ -12,7 +12,8 @@ dependencies = [
     "redis (>=5.2.1,<6.0.0)",
     "numpy (>=2.2.4,<3.0.0)",
     "pandas (>=2.2.3,<3.0.0)",
-    "pydantic (>=2.10.6,<3.0.0)"
+    "pydantic (>=2.10.6,<3.0.0)",
+    "protobuf (==6.31.1)"
 ]
 
 [tool.poetry]
