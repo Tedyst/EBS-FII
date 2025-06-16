@@ -26,7 +26,7 @@ async def create_publications(appstate: AppState, count: int) -> None:
         publications = [PublicationWithData.random() for _ in range(count)]
 
         async for index, publication in tqdm(enumerate(publications)):
-            if index % 10 == 0:
+            if index % 18 == 0:
                 await asyncio.sleep(1)
             publication.timestamp = int(datetime.now().timestamp() * 1000)
             publication = cast(PublicationWithData, publication)

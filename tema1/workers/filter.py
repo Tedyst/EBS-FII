@@ -34,6 +34,7 @@ class FilterWorker(SubscriptionTracker):
 
         self.message_count = 0
         self.message_delay_total = 0
+        self.matched = 0
 
     async def start_finish_producer(self):
         await self.aggregation_producer.start()
@@ -45,7 +46,7 @@ class FilterWorker(SubscriptionTracker):
         while True:
             print(
                 f"Processed {self.message_count} messages. Average delay: "
-                f"{self.message_delay_total / self.message_count if self.message_count > 0 else 0:.2f} ms"
+                f"{self.message_delay_total / self.message_count if self.message_count > 0 else 0:.2f} ms. Matched: {self.matched / self.message_count if self.message_count > 0 else 0:.2f}%"
             )
             await asyncio.sleep(10)
 
@@ -64,10 +65,7 @@ class FilterWorker(SubscriptionTracker):
                 )
                 continue
 
-            self.message_count += 1
-            self.message_delay_total += (
-                datetime.datetime.now().timestamp() * 1000 - publication.timestamp
-            )
+            self.matched += 1
 
             if not subscription.enabled_aggregation_fields():
                 await self.channel.default_exchange.publish(
@@ -112,6 +110,12 @@ class FilterWorker(SubscriptionTracker):
         parsed = pubsub_pb2.Publication()
         parsed.ParseFromString(message)
         publication = PublicationWithData.from_proto(parsed)
+
+        self.message_count += 1
+        self.message_delay_total += (
+            datetime.datetime.now().timestamp() * 1000 - publication.timestamp
+        )
+
         filters = None
         if getattr(publication, field) is None or field not in self.default_filters:
             random_field = random.choice(publication.remaining_filter_fields())
