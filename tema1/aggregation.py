@@ -43,7 +43,9 @@ class AggregationFilter:
         self._cached_value = None
         if len(self.window) < self.window_size:
             return False
-        return self.field.comparator.compare(self.window_value(), value)
+        return self.field.comparator.compare(
+            self.window_value(), getattr(self.subscription, self.field_name).value
+        )
 
 
 class Aggregator:
@@ -52,7 +54,7 @@ class Aggregator:
         window_size: int = 10,
     ) -> None:
         self.aggregators: dict[
-            int, dict[tuple[str, Comparator], AggregationFilter]
+            str, dict[tuple[str, Comparator], AggregationFilter]
         ] = {}
         self.window_size = window_size
 
