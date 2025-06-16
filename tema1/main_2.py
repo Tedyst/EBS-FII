@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import signal
+import sys
 import multiprocessing
 
 from common import AppState
@@ -117,7 +118,11 @@ def _main(args):
     asyncio.set_event_loop(loop)
 
     main_task = asyncio.ensure_future(main(args))
-    loop.add_signal_handler(signal.SIGINT, lambda: main_task.cancel())
+    try:
+        loop.add_signal_handler(signal.SIGINT, lambda: main_task.cancel())
+    except NotImplementedError:
+        if sys.platform == "win32":
+            pass
     loop.run_until_complete(main_task)
 
 

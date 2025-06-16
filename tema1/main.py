@@ -9,7 +9,7 @@ from common import ComparablePonder, Publication, Subscription, SubscriptionPond
 
 
 PUBLICATIONS_COUNT = int(os.getenv("PUBLICATIONS_COUNT", 100))
-SUBSCRIPTIONS_COUNT = int(os.getenv("SUBSCRIPTIONS_COUNT", 100))
+SUBSCRIPTIONS_COUNT = int(os.getenv("SUBSCRIPTIONS_COUNT", 300))
 PROCESSES = int(os.getenv("PROCESSES", 4))
 THREADS = int(os.getenv("THREADS", 4))
 
