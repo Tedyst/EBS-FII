@@ -48,3 +48,45 @@ Speed (MHz): avg: 1397 min/max: 800/4100 cores: 1: 1397 2: 1397 3: 1397
 ![procese](graphs/Vlad/processes_execution_time.png)
 ![publicatii](graphs/Vlad/publications_execution_time.png)
 ![subscriptii](graphs/Vlad/subscriptions_execution_time.png)
+
+# Running
+
+# RabbitMQ
+
+```
+docker run -d --hostname rabbitmqebs --name rabbitmqebs -e RABBITMQ_DEFAULT_USER=user -e RABBITMQ_DEFAULT_PASS=password -p 5672:5672 -p 5552:5552 -p 15692:15692 -p 15672:15672 rabbitmqebs
+```
+
+# Consumer
+
+```
+python main_2.py consumer 1000
+```
+
+# Filtering
+
+Se pot pune numele field-urilor pe care se doreste filtrarea, cu spatii intre ele. Sau `all` pentru toate.
+
+```
+python main_2.py filter all
+```
+
+# Aggregator
+
+La fel ca si la filtrare, se pot pune numele field-urilor pe care se doreste agregarea, cu spatii intre ele. Sau `all` pentru toate.
+
+```
+python main_2.py aggregate all
+```
+
+# Publisher
+
+```
+python main_2.py create_pubs 1000
+```
+
+# Clearing everything
+
+```
+python main_2.py clear
+```

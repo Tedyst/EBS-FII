@@ -1,0 +1,4 @@
+FROM rabbitmq:management
+
+RUN rabbitmq-plugins enable --offline rabbitmq_stream rabbitmq_stream_management
+ENV RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS='-rabbitmq_stream advertised_host localhost'

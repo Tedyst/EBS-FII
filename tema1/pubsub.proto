@@ -1,46 +1,114 @@
 syntax = "proto3";
 
+package serialization;
+
+enum City {
+    BUCHAREST = 0;
+    CLUJ = 1;
+    TIMISOARA = 2;
+    IASI = 3;
+    CONSTANTA = 4;
+}
+
+enum Direction {
+    NE = 0;
+    NW = 1;
+    SE = 2;
+    SW = 3;
+}
+
 message Publication {
-  string id = 1; 
-  string stationid = 2;
-  string city = 3;
-  int32 temp = 4;
-  float rain = 5;
-  int32 wind = 6;
-  string direction = 7;
-  string date = 8;
+    int32 stationid = 1;
+    City city = 2;
+    int32 temp = 3;
+    float rain = 4;
+    int32 wind = 5;
+    Direction direction = 6;
+    string date = 7;
+
+    repeated string parsed_fields = 8;
+
+    bool all_subscriptions = 9;
+    repeated string remaining_subscriptions = 10;
 }
 
 enum Comparator {
-  EQUAL = 0;
-  GREATER = 1;
-  GREATER_EQUAL = 2;
-  LESS = 3;
-  LESS_EQUAL = 4;
+    EQUAL = 0;
+    GREATER = 1;
+    GREATER_EQUAL = 2;
+    LESS = 3;
+    LESS_EQUAL = 4;
 }
 
-message ComparableInt {
-  int32 value = 1;
-  Comparator comparator = 2;
+enum AggregateType {
+    SUM = 0;
+    AVG = 1;
+    MIN = 2;
+    MAX = 3;
 }
 
-message ComparableFloat {
-  float value = 1;
-  Comparator comparator = 2;
-}
-
-message ComparableString {
-  string value = 1;
-  Comparator comparator = 2;
-}
 
 message Subscription {
-  string id = 1; 
-  ComparableString stationid = 2;
-  ComparableString city = 3;
-  ComparableInt temp = 4;
-  ComparableFloat rain = 5;
-  ComparableInt wind = 6;
-  ComparableString direction = 7;
-  ComparableString date = 8;
+    string id = 1;
+
+    optional int32 stationid = 2;
+    optional Comparator stationid_comparator = 3;
+
+    optional City city = 4;
+    optional Comparator city_comparator = 5;
+
+    optional int32 temp = 6;
+    optional Comparator temp_comparator = 7;
+
+    optional float rain = 8;
+    optional Comparator rain_comparator = 9;
+
+    optional int32 wind = 10;
+    optional Comparator wind_comparator = 11;
+
+    optional Direction direction = 12;
+    optional Comparator direction_comparator = 13;
+
+    optional string date = 14;
+    optional Comparator date_comparator = 15;
+
+    optional int32 temp_agg = 16;
+    optional AggregateType temp_agg_type = 17;
+    optional Comparator temp_agg_comparator = 18;
+
+    optional float rain_agg = 19;
+    optional AggregateType rain_agg_type = 20;
+    optional Comparator rain_agg_comparator = 21;
+
+    optional int32 wind_agg = 22;
+    optional AggregateType wind_agg_type = 23;
+    optional Comparator wind_agg_comparator = 24;
+
+    repeated string parsed_fields = 25;
+
+    bool all_subscriptions = 26;
+
+    string return_topic = 27;
+}
+
+enum SubscriptionType {
+    SUBSCRIBE = 0;
+    UNSUBSCRIBE = 1;
+}
+
+message SubscriptionMessage {
+    SubscriptionType subscription_type = 1;
+
+    repeated Subscription subscriptions = 2;
+}
+
+enum MatchType {
+    AGGREGATION = 0;
+    DIRECT = 1;
+}
+
+message MatchedPublicationWithSubscription {
+    Publication publication = 1;
+    Subscription subscription = 2;
+    MatchType match_type = 3;
 }

@@ -2,18 +2,21 @@
 name = "tema1"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "Stoica Tedy",email = "stoicatedy@gmail.com"}
-]
+authors = [{ name = "Stoica Tedy", email = "stoicatedy@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4.0"
 dependencies = [
     "celery (>=5.4.0,<6.0.0)",
     "redis (>=5.2.1,<6.0.0)",
     "numpy (>=2.2.4,<3.0.0)",
     "pandas (>=2.2.3,<3.0.0)",
     "pydantic (>=2.10.6,<3.0.0)",
-    "protobuf (==6.31.1)"
+    "ruff (>=0.11.5,<0.12.0)",
+    "protobuf (>=6.30.2,<7.0.0)",
+    "mypy-protobuf (>=3.6.0,<4.0.0)",
+    "rstream (>=0.20.9,<0.21.0)",
+    "aio-pika (>=9.5.5,<10.0.0)",
+    "tqdm (>=4.67.1,<5.0.0)",
 ]
 
 [tool.poetry]

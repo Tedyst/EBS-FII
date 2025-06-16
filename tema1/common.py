@@ -1,14 +1,31 @@
+from dataclasses import dataclass
 import enum
-import threading
-from typing import Optional, List
+import multiprocessing
+from multiprocessing.sharedctypes import Synchronized
+import uuid
+import pubsub_pb2
+from typing import Callable, Optional
 
 from pydantic import BaseModel, Field
 
 from datetime import date as Date, datetime, timedelta
 import random
-import uuid
 
-import pubsub_pb2 as proto
+SUBSCRIPTIONS_STREAM = "SUBSCRIPTIONS"
+AGGREGATION_STREAM = "AGGREGATION"
+
+
+class AppState:
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        password: str,
+    ) -> None:
+        self.username = username
+        self.password = password
+        self.host = host
+
 
 class City(enum.Enum):
     BUCHAREST = "Bucharest"
@@ -16,6 +33,21 @@ class City(enum.Enum):
     TIMISOARA = "Timisoara"
     IASI = "Iasi"
     CONSTANTA = "Constanta"
+
+    @classmethod
+    def from_index(cls, index: int):
+        if index == 0:
+            return cls.BUCHAREST
+        elif index == 1:
+            return cls.CLUJ
+        elif index == 2:
+            return cls.TIMISOARA
+        elif index == 3:
+            return cls.IASI
+        elif index == 4:
+            return cls.CONSTANTA
+        else:
+            raise ValueError(f"Unknown city index: {index}")
 
     def __str__(self):
         return self.value
@@ -27,13 +59,25 @@ class Direction(enum.Enum):
     SE = "SE"
     SW = "SW"
 
+    @classmethod
+    def from_index(cls, index: int):
+        if index == 0:
+            return cls.NE
+        elif index == 1:
+            return cls.NW
+        elif index == 2:
+            return cls.SE
+        elif index == 3:
+            return cls.SW
+        else:
+            raise ValueError(f"Unknown direction index: {index}")
+
     def __str__(self):
         return self.value
 
 
 class Publication(BaseModel):
-    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
-    stationid: str = Field(...)
+    stationid: int = Field(..., ge=1, le=100)
     city: City
     temp: int = Field(..., ge=-10, le=40)
     rain: float = Field(..., ge=0, le=1)
@@ -44,8 +88,20 @@ class Publication(BaseModel):
     date: Date
 
     @classmethod
+    def fields(cls):
+        return [
+            "stationid",
+            "city",
+            "temp",
+            "rain",
+            "wind",
+            "direction",
+            "date",
+        ]
+
+    @classmethod
     def random(cls):
-        stationid = str(uuid.uuid4())
+        stationid = random.randint(1, 100)
         city = random.choice(list(City))
         temp = random.randint(-10, 40)
         rain = round(random.uniform(0, 1), 2)
@@ -64,36 +120,61 @@ class Publication(BaseModel):
         )
 
     def __str__(self):
-        return f"{{(stationid,{self.stationid});(city,\"{self.city}\");(temp,{self.temp});(rain,{self.rain});(wind,{self.wind});(direction,\"{self.direction}\");(date,{self.date.strftime('%d.%m.%Y')})}}"
+        return f'{{(stationid,{self.stationid});(city,"{self.city}");(temp,{self.temp});(rain,{self.rain});(wind,{self.wind});(direction,"{self.direction}");(date,{self.date.strftime("%d.%m.%Y")})}}'
 
-    def to_proto(self):
-        return proto.Publication(
-            id=str(self.id),
-            stationid=str(self.stationid),
-            city=str(self.city.value) if hasattr(self.city, "value") else str(self.city),
-            temp=int(self.temp),
-            rain=float(self.rain),
-            wind=int(self.wind),
-            direction=str(self.direction.value) if hasattr(self.direction, "value") else str(self.direction),
-            date=str(self.date)
-        )
+
+class PublicationWithData(Publication):
+    parsed_fields: list[str] = Field(default_factory=list)
+    remaining_subscriptions: list[str] = Field(default_factory=list)
+    all_subscriptions: bool = Field(default=False)
 
     @classmethod
-    def from_proto(cls, proto_pub):
+    def random(cls):
+        obj = super().random()
+        obj.all_subscriptions = True
+        return obj
+
+    def remaining_filter_fields(self):
+        return [
+            field
+            for field in self.fields()
+            if field not in self.parsed_fields
+            and getattr(self, field, None) is not None
+        ]
+
+    def to_proto(self, without_metadata=False):
+        p = pubsub_pb2.Publication()
+        p.stationid = self.stationid
+        p.city = pubsub_pb2.City.Value(self.city.name)
+        p.temp = self.temp
+        p.rain = self.rain
+        p.wind = self.wind
+        p.direction = pubsub_pb2.Direction.Value(self.direction.name)
+        p.date = self.date.strftime("%Y-%m-%d")
+        if without_metadata:
+            return p
+        p.parsed_fields.extend(self.parsed_fields)
+        p.remaining_subscriptions.extend(self.remaining_subscriptions)
+        p.all_subscriptions = self.all_subscriptions
+        return p
+
+    @classmethod
+    def from_proto(cls, proto_pub: pubsub_pb2.Publication):
         return cls(
-            id=proto_pub.id,
             stationid=proto_pub.stationid,
-            city=proto_pub.city,
+            city=City.from_index(proto_pub.city),
             temp=proto_pub.temp,
             rain=proto_pub.rain,
             wind=proto_pub.wind,
-            direction=proto_pub.direction,
-            date=proto_pub.date
+            direction=Direction.from_index(proto_pub.direction),
+            date=datetime.strptime(proto_pub.date, "%Y-%m-%d").date(),
+            parsed_fields=list(proto_pub.parsed_fields),
+            remaining_subscriptions=list(proto_pub.remaining_subscriptions),
+            all_subscriptions=proto_pub.all_subscriptions,
         )
-    
+
     @classmethod
     def parse_str(cls, line: str) -> "Publication":
-       
         line = line.strip()[1:-1]
         kwargs = {}
         for part in line.split(";"):
@@ -129,7 +210,7 @@ class Publication(BaseModel):
                 if line:
                     pubs.append(cls.parse_str(line))
         return pubs
-    
+
 
 class Comparator(enum.Enum):
     EQUAL = "="
@@ -138,31 +219,117 @@ class Comparator(enum.Enum):
     LESS = "<"
     LESS_EQUAL = "<="
 
+    @classmethod
+    def from_index(cls, index: int):
+        if index == 0:
+            return cls.EQUAL
+        elif index == 1:
+            return cls.GREATER
+        elif index == 2:
+            return cls.GREATER_EQUAL
+        elif index == 3:
+            return cls.LESS
+        elif index == 4:
+            return cls.LESS_EQUAL
+        else:
+            raise ValueError(f"Unknown comparator index: {index}")
+
+    def compare(self, a, b):
+        if self == Comparator.EQUAL:
+            return a == b
+        elif self == Comparator.GREATER:
+            return a > b
+        elif self == Comparator.GREATER_EQUAL:
+            return a >= b
+        elif self == Comparator.LESS:
+            return a < b
+        elif self == Comparator.LESS_EQUAL:
+            return a <= b
+        else:
+            raise ValueError(f"Unknown comparator: {self}")
+
 
 class Comparable[T](BaseModel):
     value: T
     comparator: Comparator
 
+    class Config:
+        frozen = True
 
-lock_comparator = threading.Lock()
-lock_existance = threading.Lock()
+    def matches(self, other: T) -> bool:
+        if isinstance(other, Comparable):
+            return self.comparator.compare(self.value, other.value)
+        return self.comparator.compare(self.value, other)
 
-class ComparablePonder(BaseModel):
-    equality_ponder: float = Field(default=1, ge=0, le=1)
-    existance_ponder: float = Field(default=0, ge=0, le=1)
 
-    count_equality: int = 0
-    count_nonequality: int = 0
+class AggregateType(enum.Enum):
+    SUM = "SUM"
+    AVG = "AVG"
+    MIN = "MIN"
+    MAX = "MAX"
 
-    count_nonexistants: int = 0
-    count_existants: int = 0
+    @classmethod
+    def from_index(cls, index: int):
+        if index == 0:
+            return cls.SUM
+        elif index == 1:
+            return cls.AVG
+        elif index == 2:
+            return cls.MIN
+        elif index == 3:
+            return cls.MAX
+        else:
+            raise ValueError(f"Unknown aggregate type index: {index}")
+
+    def __str__(self):
+        return self.value
+
+
+class Aggregatable[T](BaseModel):
+    value: T
+    comparator: Comparator
+    agregate_type: AggregateType
+
+    class Config:
+        frozen = True
+
+    def __str__(self):
+        return f"({self.comparator.value},{self.value},{self.agregate_type})"
+
+
+lock_comparator = multiprocessing.Lock()
+lock_existance = multiprocessing.Lock()
+
+
+class ComparablePonder:
+    def __init__(
+        self,
+        equality_ponder: float = 1,
+        existance_ponder: float = 0,
+    ):
+        self.equality_ponder = equality_ponder
+        self.existance_ponder = existance_ponder
+        self.count_equality: "Synchronized[int]" = multiprocessing.Value(
+            "i", 0, lock=False
+        )
+        self.count_nonequality: "Synchronized[int]" = multiprocessing.Value(
+            "i", 0, lock=False
+        )
+        self.count_nonexistants: "Synchronized[int]" = multiprocessing.Value(
+            "i", 0, lock=False
+        )
+        self.count_existants: "Synchronized[int]" = multiprocessing.Value(
+            "i", 0, lock=False
+        )
 
     def get_comparator(self):
         with lock_comparator:
-            if (self.count_equality + self.count_nonequality) * self.equality_ponder >= self.count_equality:
-                self.count_equality += 1 
+            if (
+                self.count_equality.value + self.count_nonequality.value
+            ) * self.equality_ponder >= self.count_equality.value:
+                self.count_equality.value += 1
                 return Comparator.EQUAL
-            self.count_nonequality += 1
+            self.count_nonequality.value += 1
             return random.choices(
                 [
                     Comparator.GREATER,
@@ -181,14 +348,20 @@ class ComparablePonder(BaseModel):
 
     def should_exist(self):
         with lock_existance:
-            if (self.count_nonexistants + self.count_existants) * self.existance_ponder > self.count_existants:
-                self.count_existants += 1
+            if (
+                self.count_nonexistants.value + self.count_existants.value
+            ) * self.existance_ponder > self.count_existants.value:
+                self.count_existants.value += 1
                 return True
-            self.count_nonexistants += 1
+            self.count_nonexistants.value += 1
             return False
 
+    def __str__(self):
+        return f"({self.equality_ponder=},{self.existance_ponder=},{self.count_equality.value=},{self.count_nonequality.value=},{self.count_existants.value=},{self.count_nonexistants.value=})"
 
-class SubscriptionPonders(BaseModel):
+
+@dataclass
+class SubscriptionPonders:
     stationid: ComparablePonder = ComparablePonder()
     city: ComparablePonder = ComparablePonder()
     temp: ComparablePonder = ComparablePonder()
@@ -197,10 +370,15 @@ class SubscriptionPonders(BaseModel):
     direction: ComparablePonder = ComparablePonder()
     date: ComparablePonder = ComparablePonder()
 
+    temp_agg: ComparablePonder = ComparablePonder()
+    rain_agg: ComparablePonder = ComparablePonder()
+    wind_agg: ComparablePonder = ComparablePonder()
+
 
 class Subscription(BaseModel):
-    id: Optional[str] = Field(default_factory=lambda: str(uuid.uuid4()))
-    stationid: Optional[Comparable[str]] = None
+    id: str
+
+    stationid: Optional[Comparable[int]] = None
     city: Optional[Comparable[City]] = None
     temp: Optional[Comparable[int]] = None
     rain: Optional[Comparable[float]] = None
@@ -210,187 +388,264 @@ class Subscription(BaseModel):
 
     date: Optional[Comparable[Date]] = None
 
+    temp_agg: Optional[Aggregatable[int]] = None
+    rain_agg: Optional[Aggregatable[float]] = None
+    wind_agg: Optional[Aggregatable[int]] = None
+
+    return_topic: Optional[str] = None
+
+    class Config:
+        frozen = True
+
     @classmethod
-    def random(cls, ponders: SubscriptionPonders):
-        stationid = (
-            Comparable[str](
-                value=str(uuid.uuid4()),
-                comparator=ponders.stationid.get_comparator(),
-            )
-            if ponders.stationid.should_exist()
-            else None
-        )
-        city = (
-            Comparable[City](
-                value=random.choice(list(City)),
-                comparator=ponders.city.get_comparator(),
-            )
-            if ponders.city.should_exist()
-            else None
-        )
-        temp = (
-            Comparable[int](
-                value=random.randint(-10, 40),
-                comparator=ponders.temp.get_comparator(),
-            )
-            if ponders.temp.should_exist()
-            else None
-        )
-        rain = (
-            Comparable[float](
-                value=round(random.uniform(0, 1), 2),
-                comparator=ponders.rain.get_comparator(),
-            )
-            if ponders.rain.should_exist()
-            else None
-        )
-        wind = (
-            Comparable[int](
-                value=random.randint(0, 20),
-                comparator=ponders.wind.get_comparator(),
-            )
-            if ponders.wind.should_exist()
-            else None
-        )
-        direction = (
-            Comparable[Direction](
-                value=random.choice(list(Direction)),
-                comparator=ponders.direction.get_comparator(),
-            )
-            if ponders.direction.should_exist()
-            else None
-        )
-        date = (
-            Comparable[Date](
-                value=(
-                    datetime(2023, 1, 1) + timedelta(days=random.randint(0, 364))
-                ).date(),
-                comparator=ponders.date.get_comparator(),
-            )
-            if ponders.date.should_exist()
-            else None
+    def random_stationid(cls):
+        return random.randint(1, 100)
+
+    @classmethod
+    def random_city(cls):
+        return random.choice(list(City))
+
+    @classmethod
+    def random_temp(cls):
+        return random.randint(-10, 40)
+
+    @classmethod
+    def random_rain(cls):
+        return round(random.uniform(0, 1), 2)
+
+    @classmethod
+    def random_wind(cls):
+        return random.randint(0, 20)
+
+    @classmethod
+    def random_direction(cls):
+        return random.choice(list(Direction))
+
+    @classmethod
+    def random_date(cls):
+        return (datetime(2023, 1, 1) + timedelta(days=random.randint(0, 364))).date()
+
+    @classmethod
+    def fields(cls):
+        return [
+            "stationid",
+            "city",
+            "temp",
+            "rain",
+            "wind",
+            "direction",
+            "date",
+        ]
+
+    @classmethod
+    def agg_fields(cls):
+        return [
+            "temp_agg",
+            "rain_agg",
+            "wind_agg",
+        ]
+
+    @classmethod
+    def _random_comparable_field(
+        cls, ponders: SubscriptionPonders, field_name: str, force=False
+    ):
+        if field_name not in cls.fields():
+            return None
+        random_function: Optional[Callable] = getattr(cls, "random_" + field_name, None)
+        if random_function is None:
+            return None
+        if not force and not getattr(ponders, field_name).should_exist():
+            return None
+        return Comparable(
+            value=random_function(),
+            comparator=getattr(ponders, field_name).get_comparator(),
         )
 
-        if not stationid and not city and not temp and not rain and not wind and not direction and not date:
-            ponders.stationid.count_nonexistants -= 1
-            ponders.stationid.count_existants += 1
-            return cls(
-                stationid=Comparable[str](
-                    value=str(uuid.uuid4()),
-                    comparator=ponders.stationid.get_comparator(),
-                ),
-                city=None,
-                temp=None,
-                rain=None,
-                wind=None,
-                direction=None,
-                date=None,
-            )
-
-        return cls(
-            stationid=stationid,
-            city=city,
-            temp=temp,
-            rain=rain,
-            wind=wind,
-            direction=direction,
-            date=date,
+    @classmethod
+    def _random_aggregatable_field(
+        cls, ponders: SubscriptionPonders, field_name: str, force=False
+    ):
+        if field_name not in cls.agg_fields():
+            return None
+        random_function: Optional[Callable] = getattr(
+            cls, "random_" + field_name.replace("_agg", ""), None
+        )
+        if random_function is None:
+            return None
+        if not force and not getattr(ponders, field_name).should_exist():
+            return None
+        return Aggregatable(
+            value=random_function(),
+            comparator=getattr(ponders, field_name).get_comparator(),
+            agregate_type=random.choice(list(AggregateType)),
         )
 
-    def __str__(self):
-        fields = []
-        for key, value in self.__dict__.items():
-            if value is None:
-                continue
-            if hasattr(value, "comparator") and hasattr(value, "value"):
-                fields.append(f"({key},{value.comparator.value},{value.value})")
-            else:
-                fields.append(f"({key},=,{value})")
-        return "{" + ";".join(fields) + "}"
-    
+    @classmethod
+    def random(cls, ponders: SubscriptionPonders, return_topic: Optional[str] = None):
+        fields = {}
+        fields["id"] = str(uuid.uuid4())
+        empty = True
+        for field_name in cls.fields():
+            fields[field_name] = cls._random_comparable_field(ponders, field_name)
+            if fields[field_name] is not None:
+                empty = False
+        for field_name in cls.agg_fields():
+            fields[field_name] = cls._random_aggregatable_field(ponders, field_name)
+        if empty:
+            field = random.choice(cls.fields())
+            p: Optional[ComparablePonder] = getattr(ponders, field, None)
+            if not p:
+                raise ValueError(f"Field {field} not found in ponders")
+            with lock_existance:
+                p.count_nonexistants.value -= 1
+                p.count_existants.value += 1
+            fields[field] = cls._random_comparable_field(ponders, field, True)
+        fields["return_topic"] = return_topic
+        return cls(**fields)
+
+    def enabled_aggregation_fields(self):
+        f = []
+        for field_name in self.agg_fields():
+            if getattr(self, field_name) is not None:
+                f.append(field_name)
+        return f
+
     def to_proto(self):
-        COMPARATOR_MAP = {
-            "=": 0,
-            ">": 1,
-            ">=": 2,
-            "<": 3,
-            "<=": 4
-        }
-        
-        sub = proto.Subscription(
-            id=self.id
-        )
+        sub = pubsub_pb2.Subscription(id=self.id)
         if self.stationid:
-            sub.stationid.value = str(self.stationid.value)
-            sub.stationid.comparator = COMPARATOR_MAP[self.stationid.comparator.value]
+            sub.stationid = self.stationid.value
+            sub.stationid_comparator = pubsub_pb2.Comparator.Value(
+                self.stationid.comparator.name
+            )
         if self.city:
-            sub.city.value = str(self.city.value) if hasattr(self.city, "value") else str(self.city)
-            sub.city.comparator = COMPARATOR_MAP[self.city.comparator.value]
+            sub.city = pubsub_pb2.City.Value(self.city.value.name)
+            sub.city_comparator = pubsub_pb2.Comparator.Value(self.city.comparator.name)
         if self.temp:
-            sub.temp.value = self.temp.value
-            sub.temp.comparator = COMPARATOR_MAP[self.temp.comparator.value]
+            sub.temp = self.temp.value
+            sub.temp_comparator = pubsub_pb2.Comparator.Value(self.temp.comparator.name)
         if self.rain:
-            sub.rain.value = self.rain.value
-            sub.rain.comparator = COMPARATOR_MAP[self.rain.comparator.value]
+            sub.rain = self.rain.value
+            sub.rain_comparator = pubsub_pb2.Comparator.Value(self.rain.comparator.name)
         if self.wind:
-            sub.wind.value = self.wind.value
-            sub.wind.comparator = COMPARATOR_MAP[self.wind.comparator.value]
+            sub.wind = self.wind.value
+            sub.wind_comparator = pubsub_pb2.Comparator.Value(self.wind.comparator.name)
         if self.direction:
-            sub.direction.value = str(self.direction.value) if hasattr(self.direction, "value") else str(self.direction)
-            sub.direction.comparator = COMPARATOR_MAP[self.direction.comparator.value]
+            sub.direction = pubsub_pb2.Direction.Value(self.direction.value.name)
+            sub.direction_comparator = pubsub_pb2.Comparator.Value(
+                self.direction.comparator.name
+            )
         if self.date:
-            if hasattr(self.date.value, "strftime"):
-                sub.date.value = self.date.value.strftime("%d.%m.%Y")
-            else:
-                sub.date.value = str(self.date.value)
-            sub.date.comparator = COMPARATOR_MAP[self.date.comparator.value]
+            sub.date = self.date.value.strftime("%Y-%m-%d")
+            sub.date_comparator = pubsub_pb2.Comparator.Value(self.date.comparator.name)
+        if self.temp_agg:
+            sub.temp_agg = self.temp_agg.value
+            sub.temp_agg_comparator = pubsub_pb2.Comparator.Value(
+                self.temp_agg.comparator.name
+            )
+            sub.temp_agg_type = pubsub_pb2.AggregateType.Value(
+                self.temp_agg.agregate_type.name
+            )
+        if self.rain_agg:
+            sub.rain_agg = self.rain_agg.value
+            sub.rain_agg_comparator = pubsub_pb2.Comparator.Value(
+                self.rain_agg.comparator.name
+            )
+            sub.rain_agg_type = pubsub_pb2.AggregateType.Value(
+                self.rain_agg.agregate_type.name
+            )
+        if self.wind_agg:
+            sub.wind_agg = self.wind_agg.value
+            sub.wind_agg_comparator = pubsub_pb2.Comparator.Value(
+                self.wind_agg.comparator.name
+            )
+            sub.wind_agg_type = pubsub_pb2.AggregateType.Value(
+                self.wind_agg.agregate_type.name
+            )
+        if self.return_topic:
+            sub.return_topic = self.return_topic
         return sub
 
     @classmethod
-    def from_proto(cls, proto_sub):
-        COMPARATOR_INV_MAP = {
-            0: Comparator.EQUAL,
-            1: Comparator.GREATER,
-            2: Comparator.GREATER_EQUAL,
-            3: Comparator.LESS,
-            4: Comparator.LESS_EQUAL
-        }
-        
-        return cls(
-        id=proto_sub.id,
-        stationid=Comparable[str](
-            value=proto_sub.stationid.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.stationid.comparator]
-        ) if proto_sub.HasField("stationid") else None,
-        city=Comparable[str](
-            value=proto_sub.city.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.city.comparator]
-        ) if proto_sub.HasField("city") else None,
-        temp=Comparable[int](
-            value=proto_sub.temp.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.temp.comparator]
-        ) if proto_sub.HasField("temp") else None,
-        rain=Comparable[float](
-            value=proto_sub.rain.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.rain.comparator]
-        ) if proto_sub.HasField("rain") else None,
-        wind=Comparable[int](
-            value=proto_sub.wind.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.wind.comparator]
-        ) if proto_sub.HasField("wind") else None,
-        direction=Comparable[str](
-            value=proto_sub.direction.value,
-            comparator=COMPARATOR_INV_MAP[proto_sub.direction.comparator]
-        ) if proto_sub.HasField("direction") else None,
-        date=Comparable[datetime](
-            value=datetime.strptime(proto_sub.date.value, "%d.%m.%Y").date(),
-            comparator=COMPARATOR_INV_MAP[proto_sub.date.comparator]
-        ) if proto_sub.HasField("date") else None,
-    )
-    
+    def from_proto(cls, s: pubsub_pb2.Subscription):
+        fields = {}
+        fields["id"] = s.id
+        if s.HasField("stationid"):
+            fields["stationid"] = Comparable(
+                value=s.stationid,
+                comparator=Comparator.from_index(int(s.stationid_comparator)),
+            )
+        if s.HasField("city"):
+            fields["city"] = Comparable(
+                value=City.from_index(int(s.city)),
+                comparator=Comparator.from_index(int(s.city_comparator)),
+            )
+        if s.HasField("temp"):
+            fields["temp"] = Comparable(
+                value=s.temp,
+                comparator=Comparator.from_index(int(s.temp_comparator)),
+            )
+        if s.HasField("rain"):
+            fields["rain"] = Comparable(
+                value=s.rain,
+                comparator=Comparator.from_index(int(s.rain_comparator)),
+            )
+        if s.HasField("wind"):
+            fields["wind"] = Comparable(
+                value=s.wind,
+                comparator=Comparator.from_index(int(s.wind_comparator)),
+            )
+        if s.HasField("direction"):
+            fields["direction"] = Comparable(
+                value=Direction.from_index(int(s.direction)),
+                comparator=Comparator.from_index(int(s.direction_comparator)),
+            )
+        if s.HasField("date"):
+            fields["date"] = Comparable(
+                value=datetime.strptime(s.date, "%Y-%m-%d").date(),
+                comparator=Comparator.from_index(int(s.date_comparator)),
+            )
+        if s.HasField("temp_agg"):
+            fields["temp_agg"] = Aggregatable(
+                value=s.temp_agg,
+                comparator=Comparator.from_index(int(s.temp_agg_comparator)),
+                agregate_type=AggregateType.from_index(int(s.temp_agg_type)),
+            )
+        if s.HasField("rain_agg"):
+            fields["rain_agg"] = Aggregatable(
+                value=s.rain_agg,
+                comparator=Comparator.from_index(int(s.rain_agg_comparator)),
+                agregate_type=AggregateType.from_index(int(s.rain_agg_type)),
+            )
+        if s.HasField("wind_agg"):
+            fields["wind_agg"] = Aggregatable(
+                value=s.wind_agg,
+                comparator=Comparator.from_index(int(s.wind_agg_comparator)),
+                agregate_type=AggregateType.from_index(int(s.wind_agg_type)),
+            )
+        fields["return_topic"] = s.return_topic
+        return cls(**fields)
+
+    def __str__(self) -> str:
+        return (
+            f"id={self.id},"
+            "{"
+            + ";".join(
+                [
+                    f"({key},{value.comparator.value},{value.value})"
+                    for key in self.fields()
+                    if (value := getattr(self, key)) is not None
+                ]
+                + [
+                    f"({key.replace('_agg', '')}_{value.agregate_type.value.lower()},{value.comparator.value},{value.value})"
+                    for key in self.agg_fields()
+                    if (value := getattr(self, key)) is not None
+                ]
+            )
+            + "}"
+        )
+
     @classmethod
     def parse_str(cls, line: str) -> "Subscription":
-     
         line = line.strip()[1:-1]
         kwargs = {}
         for part in line.split(";"):
@@ -398,20 +653,34 @@ class Subscription(BaseModel):
                 continue
             key, op, value = part.strip("()").split(",", 2)
             if key == "stationid":
-                kwargs["stationid"] = Comparable[str](value=str(value), comparator=Comparator(op))
+                kwargs["stationid"] = Comparable[str](
+                    value=str(value), comparator=Comparator(op)
+                )
             elif key == "city":
-                value = value.strip('"')  # Remove quotes
-                kwargs["city"] = Comparable[City](value=City(value), comparator=Comparator(op))
+                kwargs["city"] = Comparable[City](
+                    value=City(value), comparator=Comparator(op)
+                )
             elif key == "temp":
-                kwargs["temp"] = Comparable[int](value=int(value), comparator=Comparator(op))
+                kwargs["temp"] = Comparable[int](
+                    value=int(value), comparator=Comparator(op)
+                )
             elif key == "rain":
-                kwargs["rain"] = Comparable[float](value=float(value), comparator=Comparator(op))
+                kwargs["rain"] = Comparable[float](
+                    value=float(value), comparator=Comparator(op)
+                )
             elif key == "wind":
-                kwargs["wind"] = Comparable[int](value=int(value), comparator=Comparator(op))
+                kwargs["wind"] = Comparable[int](
+                    value=int(value), comparator=Comparator(op)
+                )
             elif key == "direction":
-                kwargs["direction"] = Comparable[Direction](value=Direction(value), comparator=Comparator(op))
+                kwargs["direction"] = Comparable[Direction](
+                    value=Direction(value), comparator=Comparator(op)
+                )
             elif key == "date":
-                kwargs["date"] = Comparable[Date](value=datetime.strptime(value, "%Y-%m-%d").date(), comparator=Comparator(op))
+                kwargs["date"] = Comparable[Date](
+                    value=datetime.strptime(value, "%Y-%m-%d").date(),
+                    comparator=Comparator(op),
+                )
         return cls(**kwargs)
 
     @classmethod
@@ -423,36 +692,3 @@ class Subscription(BaseModel):
                 if line:
                     subs.append(cls.parse_str(line))
         return subs
-
-
-class SubscriptionMatcher:
-    def __init__(self, subscriptions: List[Subscription], field: str):
-        self.subscriptions = subscriptions
-        self.field = field 
-
-    def match(self, value) -> list[Subscription]:
-        matches = []
-        for sub in self.subscriptions:
-            comp = getattr(sub, self.field)
-            if comp is None:
-                matches.append(sub)
-            else:
-                if self._compare(value, comp.value, comp.comparator):
-                    matches.append(sub)
-        return matches
-
-    def _compare(self, pub_value, sub_value, comparator: Comparator) -> bool:
-        if isinstance(pub_value, (City, Direction)):
-            pub_value = str(pub_value.value)
-            sub_value = str(sub_value.value)
-        if comparator == Comparator.EQUAL:
-            return pub_value == sub_value
-        if comparator == Comparator.GREATER:
-            return pub_value > sub_value
-        if comparator == Comparator.GREATER_EQUAL:
-            return pub_value >= sub_value
-        if comparator == Comparator.LESS:
-            return pub_value < sub_value
-        if comparator == Comparator.LESS_EQUAL:
-            return pub_value <= sub_value
-        return False
