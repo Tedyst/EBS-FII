@@ -400,6 +400,7 @@ class Subscription(BaseModel):
             if key == "stationid":
                 kwargs["stationid"] = Comparable[str](value=str(value), comparator=Comparator(op))
             elif key == "city":
+                value = value.strip('"')  # Remove quotes
                 kwargs["city"] = Comparable[City](value=City(value), comparator=Comparator(op))
             elif key == "temp":
                 kwargs["temp"] = Comparable[int](value=int(value), comparator=Comparator(op))
