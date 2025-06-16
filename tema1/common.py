@@ -127,11 +127,15 @@ class PublicationWithData(Publication):
     parsed_fields: list[str] = Field(default_factory=list)
     remaining_subscriptions: list[str] = Field(default_factory=list)
     all_subscriptions: bool = Field(default=False)
+    timestamp: int = Field(
+        default_factory=lambda: int(datetime.now().timestamp() * 1000)
+    )
 
     @classmethod
     def random(cls):
         obj = super().random()
         obj.all_subscriptions = True
+        obj.timestamp = 0
         return obj
 
     def remaining_filter_fields(self):
@@ -156,6 +160,7 @@ class PublicationWithData(Publication):
         p.parsed_fields.extend(self.parsed_fields)
         p.remaining_subscriptions.extend(self.remaining_subscriptions)
         p.all_subscriptions = self.all_subscriptions
+        p.timestamp = self.timestamp
         return p
 
     @classmethod
@@ -171,6 +176,7 @@ class PublicationWithData(Publication):
             parsed_fields=list(proto_pub.parsed_fields),
             remaining_subscriptions=list(proto_pub.remaining_subscriptions),
             all_subscriptions=proto_pub.all_subscriptions,
+            timestamp=proto_pub.timestamp,
         )
 
     @classmethod

@@ -1,3 +1,4 @@
+import asyncio
 import aio_pika
 import rstream
 from common import (
@@ -25,6 +26,13 @@ class AggregagtorWorker:
         self.aggregator = Aggregator()
         self.connection = connection
 
+        self.message_count = 0
+
+    async def print_message_count(self):
+        while True:
+            print(f"Processed {self.message_count} messages")
+            await asyncio.sleep(10)
+
     async def process_aggregation_message(
         self, message: bytes, _: rstream.MessageContext
     ):
@@ -39,19 +47,20 @@ class AggregagtorWorker:
             publication=publication, subscription=subscription
         )
         if not subscription.return_topic:
-            print(
-                f"Subscription {subscription.id} has no return topic. Skipping return publication."
-            )
+            # print(
+            #     f"Subscription {subscription.id} has no return topic. Skipping return publication."
+            # )
             return
+        self.message_count += 1
         if matches:
             await self.channel.default_exchange.publish(
                 aio_pika.Message(body=parsed.SerializeToString()),
                 routing_key=subscription.return_topic,
                 mandatory=True,
             )
-            print(
-                f"Sent matched aggregation by publication {publication} for subscription {subscription}"
-            )
+            # print(
+            #     f"Sent matched aggregation by publication {publication} for subscription {subscription}"
+            # )
 
     async def aggregate_subscriptions(self):
         async with self.aggregator_consumer as consumer:
@@ -80,4 +89,5 @@ async def start_aggregation_worker(appstate, fields: list[str]) -> None:
 
     state = AggregagtorWorker(appstate, connection)
     print(f"Starting Aggregator Worker with fields: {fields}")
+    asyncio.create_task(state.print_message_count())
     await state.aggregate_subscriptions()

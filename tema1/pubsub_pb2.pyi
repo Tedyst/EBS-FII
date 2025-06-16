@@ -143,6 +143,7 @@ class Publication(google.protobuf.message.Message):
     PARSED_FIELDS_FIELD_NUMBER: builtins.int
     ALL_SUBSCRIPTIONS_FIELD_NUMBER: builtins.int
     REMAINING_SUBSCRIPTIONS_FIELD_NUMBER: builtins.int
+    TIMESTAMP_FIELD_NUMBER: builtins.int
     stationid: builtins.int
     city: global___City.ValueType
     temp: builtins.int
@@ -151,6 +152,8 @@ class Publication(google.protobuf.message.Message):
     direction: global___Direction.ValueType
     date: builtins.str
     all_subscriptions: builtins.bool
+    timestamp: builtins.int
+    """Unix timestamp in milliseconds"""
     @property
     def parsed_fields(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     @property
@@ -168,8 +171,9 @@ class Publication(google.protobuf.message.Message):
         parsed_fields: collections.abc.Iterable[builtins.str] | None = ...,
         all_subscriptions: builtins.bool = ...,
         remaining_subscriptions: collections.abc.Iterable[builtins.str] | None = ...,
+        timestamp: builtins.int = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["all_subscriptions", b"all_subscriptions", "city", b"city", "date", b"date", "direction", b"direction", "parsed_fields", b"parsed_fields", "rain", b"rain", "remaining_subscriptions", b"remaining_subscriptions", "stationid", b"stationid", "temp", b"temp", "wind", b"wind"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["all_subscriptions", b"all_subscriptions", "city", b"city", "date", b"date", "direction", b"direction", "parsed_fields", b"parsed_fields", "rain", b"rain", "remaining_subscriptions", b"remaining_subscriptions", "stationid", b"stationid", "temp", b"temp", "timestamp", b"timestamp", "wind", b"wind"]) -> None: ...
 
 global___Publication = Publication
 

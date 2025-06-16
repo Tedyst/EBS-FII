@@ -77,18 +77,30 @@ async def remove_subscriptions(
         )
 
 
+count = 0
+
+
 async def finish_message(message: aio_pika.abc.AbstractIncomingMessage) -> None:
+    global count
     parsed = pubsub_pb2.MatchedPublicationWithSubscription()
     parsed.ParseFromString(message.body)
+    count += 1
     publication = PublicationWithData.from_proto(parsed.publication)
     subscription = Subscription.from_proto(parsed.subscription)
-    if parsed.match_type == pubsub_pb2.MatchType.DIRECT:
-        print(f"Received matched message {publication} for subscription {subscription}")
-    else:
-        print(
-            f"Received matched aggregation by publication {publication} for subscription {subscription}"
-        )
+    # if parsed.match_type == pubsub_pb2.MatchType.DIRECT:
+    #     print(f"Received matched message {publication} for subscription {subscription}")
+    # else:
+    #     print(
+    #         f"Received matched aggregation by publication {publication} for subscription {subscription}"
+    #     )
     await message.ack()
+
+
+async def print_message_count() -> None:
+    global count
+    while True:
+        print(f"Processed {count} messages")
+        await asyncio.sleep(10)
 
 
 async def consumer_loop(appstate: AppState, count: int) -> None:
@@ -109,6 +121,7 @@ async def consumer_loop(appstate: AppState, count: int) -> None:
             )
             await queue.consume(finish_message, exclusive=True)
             print(f"Listening for messages on queue {queue.name}")
+            asyncio.create_task(print_message_count())
             await asyncio.Future()
         except asyncio.CancelledError:
             print("Consumer loop cancelled, cleaning up...")

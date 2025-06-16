@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import random
 
 from aio_pika.abc import AbstractConnection
@@ -31,11 +32,22 @@ class FilterWorker(SubscriptionTracker):
             password=appstate.password,
         )
 
+        self.message_count = 0
+        self.message_delay_total = 0
+
     async def start_finish_producer(self):
         await self.aggregation_producer.start()
         await self.aggregation_producer.create_stream(
             stream=AGGREGATION_STREAM, exists_ok=True
         )
+
+    async def print_message_count(self):
+        while True:
+            print(
+                f"Processed {self.message_count} messages. Average delay: "
+                f"{self.message_delay_total / self.message_count if self.message_count > 0 else 0:.2f} ms"
+            )
+            await asyncio.sleep(10)
 
     async def finish_matching(self, publication: PublicationWithData):
         if self.channel is None:
@@ -52,6 +64,11 @@ class FilterWorker(SubscriptionTracker):
                 )
                 continue
 
+            self.message_count += 1
+            self.message_delay_total += (
+                datetime.datetime.now().timestamp() * 1000 - publication.timestamp
+            )
+
             if not subscription.enabled_aggregation_fields():
                 await self.channel.default_exchange.publish(
                     aio_pika.Message(
@@ -64,9 +81,9 @@ class FilterWorker(SubscriptionTracker):
                     routing_key=subscription.return_topic,
                     mandatory=True,
                 )
-                print(
-                    f"Sent publication {publication} to subscription {subscription} on topic {subscription.return_topic}"
-                )
+                # print(
+                #     f"Sent publication {publication} to subscription {subscription} on topic {subscription.return_topic}"
+                # )
             else:
                 await self.aggregation_producer.send(
                     AGGREGATION_STREAM,
@@ -76,9 +93,9 @@ class FilterWorker(SubscriptionTracker):
                         match_type=pubsub_pb2.MatchType.AGGREGATION,
                     ).SerializeToString(),
                 )
-                print(
-                    f"Sent publication {publication} to subscription {subscription} for aggregation"
-                )
+                # print(
+                #     f"Sent publication {publication} to subscription {subscription} for aggregation"
+                # )
 
     async def send_to_further_processing(
         self, publication: PublicationWithData, field: str
@@ -173,6 +190,7 @@ async def start_filter_worker(appstate, fields: list[str]) -> None:
     )
     print(f"Starting filter worker with fields: {fields}")
     await asyncio.gather(
+        state.print_message_count(),
         state.start_finish_producer(),
         state.track_subscriptions(),
         state.receive_publications(),

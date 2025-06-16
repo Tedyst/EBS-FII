@@ -30,6 +30,8 @@ message Publication {
 
     bool all_subscriptions = 9;
     repeated string remaining_subscriptions = 10;
+
+    int64 timestamp = 11; // Unix timestamp in milliseconds
 }
 
 enum Comparator {
