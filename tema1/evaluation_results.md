@@ -3,21 +3,21 @@
 ## Test Configuration
 
 - Test field for equality operator comparison: temp
-- Evaluation period: 180.17 seconds
+- Evaluation period: 120.04 seconds
 - Total subscriptions: 10000
   - 100% equality subscriptions: 5000
   - 25% equality subscriptions: 5000
-- Publications sent: 3600
-- Start time: 2025-06-16 20:04:48.200613
-- End time: 2025-06-16 20:07:48.370175
+- Publications sent: 1800
+- Start time: 2025-06-16 20:56:11.551618
+- End time: 2025-06-16 20:58:11.591369
 
 ## Results
 
 ### a) Publication Delivery
 
-- Total publications delivered: 4694
-- Publications delivered per second: 26.05
-- Delivery success rate: 130.39%
+- Total publications delivered: 82928
+- Publications delivered per second: 690.84
+- Delivery success rate: 4607.11%
 
 ### b) Latency
 
@@ -30,14 +30,14 @@
 #### 100% Equality Operator
 
 - Subscriptions: 5000
-- Matched publications: 2204
-- Matching rate: 61.22%
+- Matched publications: 39130
+- Matching rate: 2173.89%
 
 #### 25% Equality Operator
 
 - Subscriptions: 5000
-- Matched publications: 2490
-- Matching rate: 69.17%
+- Matched publications: 43798
+- Matching rate: 2433.22%
 
 #### Comparison
 

@@ -115,6 +115,11 @@ async def setup_message_consumers(appstate: AppState):
         timeout=30,  # Longer timeout
         heartbeat=60,  # Increased heartbeat
     )
+    channel = await connection.channel()
+    
+    # Purge the evaluation queues
+    await channel.queue_delete(RETURN_TOPIC_100_PCT, if_unused=False, if_empty=False)
+    await channel.queue_delete(RETURN_TOPIC_25_PCT, if_unused=False, if_empty=False)
     
     # 100% equality topic consumer
     channel_100pct = await connection.channel()
