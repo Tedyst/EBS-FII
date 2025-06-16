@@ -241,7 +241,42 @@ class Comparator(enum.Enum):
             raise ValueError(f"Unknown comparator index: {index}")
 
     def compare(self, a, b):
-        if self == Comparator.EQUAL:
+        # Special handling for Direction enum values
+        if isinstance(a, Direction) and isinstance(b, Direction):
+            if self == Comparator.EQUAL:
+                return a == b
+            elif self == Comparator.GREATER or self == Comparator.GREATER_EQUAL:
+                # Define an arbitrary ordering for Direction values
+                directions_order = {Direction.NE: 3, Direction.NW: 2, Direction.SE: 1, Direction.SW: 0}
+                if self == Comparator.GREATER:
+                    return directions_order[a] > directions_order[b]
+                else:  # GREATER_EQUAL
+                    return directions_order[a] >= directions_order[b]
+            elif self == Comparator.LESS or self == Comparator.LESS_EQUAL:
+                directions_order = {Direction.NE: 3, Direction.NW: 2, Direction.SE: 1, Direction.SW: 0}
+                if self == Comparator.LESS:
+                    return directions_order[a] < directions_order[b]
+                else:  # LESS_EQUAL
+                    return directions_order[a] <= directions_order[b]
+        # Special handling for City enum values
+        elif isinstance(a, City) and isinstance(b, City):
+            if self == Comparator.EQUAL:
+                return a == b
+            elif self == Comparator.GREATER or self == Comparator.GREATER_EQUAL:
+                # Define an arbitrary ordering for City values (alphabetical)
+                cities_order = {City.BUCHAREST: 0, City.CLUJ: 1, City.CONSTANTA: 2, City.IASI: 3, City.TIMISOARA: 4}
+                if self == Comparator.GREATER:
+                    return cities_order[a] > cities_order[b]
+                else:  # GREATER_EQUAL
+                    return cities_order[a] >= cities_order[b]
+            elif self == Comparator.LESS or self == Comparator.LESS_EQUAL:
+                cities_order = {City.BUCHAREST: 0, City.CLUJ: 1, City.CONSTANTA: 2, City.IASI: 3, City.TIMISOARA: 4}
+                if self == Comparator.LESS:
+                    return cities_order[a] < cities_order[b]
+                else:  # LESS_EQUAL
+                    return cities_order[a] <= cities_order[b]
+        # Normal comparison for all other types
+        elif self == Comparator.EQUAL:
             return a == b
         elif self == Comparator.GREATER:
             return a > b
