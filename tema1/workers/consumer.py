@@ -13,24 +13,16 @@ import aio_pika
 
 
 PONDERS = SubscriptionPonders(
-    stationid=ComparablePonder(
-        equality_ponder=0.6121335763499347, existance_ponder=0.7292710042118085
-    ),
+    stationid=ComparablePonder(equality_ponder=0.25, existance_ponder=0.7292710042118085),
     city=ComparablePonder(equality_ponder=1, existance_ponder=0.7127223672318329),
-    temp=ComparablePonder(
-        equality_ponder=0.6018724372232028, existance_ponder=0.7770973878067571
-    ),
-    rain=ComparablePonder(
-        equality_ponder=0.01188073999266237, existance_ponder=0.8010314666467584
-    ),
-    wind=ComparablePonder(
-        equality_ponder=0.7221635296656853, existance_ponder=0.7216120497616565
-    ),
+    temp=ComparablePonder(equality_ponder=0.25, existance_ponder=0.7770973878067571),
+    rain=ComparablePonder(equality_ponder=0.25, existance_ponder=0.8010314666467584),
+    wind=ComparablePonder(equality_ponder=0.25, existance_ponder=0.7216120497616565),
     direction=ComparablePonder(equality_ponder=1, existance_ponder=0.7065752163739988),
-    date=ComparablePonder(equality_ponder=0.50, existance_ponder=0.71008443873019977),
-    rain_agg=ComparablePonder(equality_ponder=0.12, existance_ponder=0.123454),
-    wind_agg=ComparablePonder(equality_ponder=0.234, existance_ponder=0.1324324),
-    temp_agg=ComparablePonder(equality_ponder=0.324, existance_ponder=0.1),
+    date=ComparablePonder(equality_ponder=0.25, existance_ponder=0.71008443873019977),
+    rain_agg=ComparablePonder(equality_ponder=0.25, existance_ponder=0.123454),
+    wind_agg=ComparablePonder(equality_ponder=0.25, existance_ponder=0.1324324),
+    temp_agg=ComparablePonder(equality_ponder=0.25, existance_ponder=0.1),
 )
 
 
